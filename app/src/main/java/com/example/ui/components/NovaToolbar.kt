@@ -1,6 +1,5 @@
 package com.example.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,29 +12,34 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Computer
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.outlined.Security
-import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -92,6 +96,7 @@ fun NovaToolbar(
     onOpenTabsGrid: () -> Unit,
     onOpenSecurityInfo: () -> Unit,
     onOpenRdpManager: () -> Unit = {},
+    onOpenMariaAi: () -> Unit = {},
     onMenuAction: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -118,7 +123,7 @@ fun NovaToolbar(
                     modifier = Modifier.testTag("nav_back_button")
                 ) {
                     Icon(
-                        imageVector = Icons.Default.ArrowBack,
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
                         tint = if (activeTab?.canGoBack == true)
                             MaterialTheme.colorScheme.onSurface
@@ -134,7 +139,7 @@ fun NovaToolbar(
                     modifier = Modifier.testTag("nav_forward_button")
                 ) {
                     Icon(
-                        imageVector = Icons.Default.ArrowForward,
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = "Forward",
                         tint = if (activeTab?.canGoForward == true)
                             MaterialTheme.colorScheme.onSurface
@@ -171,7 +176,7 @@ fun NovaToolbar(
                     }
                 }
 
-                // Omnibox (Address & Search Bar)
+                // Omnibox
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -194,7 +199,6 @@ fun NovaToolbar(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        // Security / Protocol Icon
                         val isSecure = activeTab?.isSecure == true
                         val isNewTab = activeTab?.isNewTab == true
 
@@ -219,7 +223,6 @@ fun NovaToolbar(
                             )
                         }
 
-                        // Text Field or Display Host
                         if (isOmniboxFocused) {
                             BasicTextField(
                                 value = omniboxQuery,
@@ -282,7 +285,6 @@ fun NovaToolbar(
                             )
                         }
 
-                        // Bookmark star icon (only visible when not typing)
                         if (!isOmniboxFocused && activeTab?.isNewTab == false) {
                             IconButton(
                                 onClick = onToggleBookmark,
@@ -299,6 +301,25 @@ fun NovaToolbar(
                             }
                         }
                     }
+                }
+
+                Spacer(modifier = Modifier.width(4.dp))
+
+                // Maria AI Assistant Button
+                IconButton(
+                    onClick = onOpenMariaAi,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f))
+                        .testTag("maria_ai_toolbar_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = "Maria AI Assistant",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(17.dp)
+                    )
                 }
 
                 Spacer(modifier = Modifier.width(4.dp))
@@ -329,7 +350,7 @@ fun NovaToolbar(
                         if (isRdpActive) {
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "RDP",
+                                text = "🇺🇸 USA",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF10B981)
@@ -347,14 +368,14 @@ fun NovaToolbar(
                         .size(36.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
                         .clickable { onOpenTabsGrid() }
-                        .testTag("tabs_switcher_button")
+                        .testTag("tabs_overview_button")
                 ) {
                     Text(
                         text = if (tabCount > 99) ":D" else tabCount.toString(),
-                        fontWeight = FontWeight.Bold,
                         fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
@@ -363,39 +384,20 @@ fun NovaToolbar(
                 Box {
                     IconButton(
                         onClick = { menuExpanded = true },
-                        modifier = Modifier.testTag("browser_menu_button")
+                        modifier = Modifier.testTag("main_menu_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.MoreVert,
-                            contentDescription = "Nova Browser Menu",
+                            contentDescription = "More options",
                             tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
 
                     DropdownMenu(
                         expanded = menuExpanded,
-                        onDismissRequest = { menuExpanded = false }
+                        onDismissRequest = { menuExpanded = false },
+                        modifier = Modifier.width(220.dp)
                     ) {
-                        DropdownMenuItem(
-                            text = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("RDP Remote Internet")
-                                    Spacer(modifier = Modifier.weight(1f))
-                                    Text(
-                                        text = if (isRdpActive) "ACTIVE" else "OFF",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isRdpActive) Color(0xFF10B981) else Color.Gray
-                                    )
-                                }
-                            },
-                            leadingIcon = { Icon(Icons.Default.Computer, null) },
-                            onClick = {
-                                menuExpanded = false
-                                onMenuAction("rdp_manager")
-                            }
-                        )
-                        HorizontalDivider()
                         DropdownMenuItem(
                             text = { Text("New tab") },
                             leadingIcon = { Icon(Icons.Default.Add, null) },
@@ -406,17 +408,27 @@ fun NovaToolbar(
                         )
                         DropdownMenuItem(
                             text = { Text("New incognito tab") },
-                            leadingIcon = { Icon(Icons.Default.Shield, null) },
+                            leadingIcon = { Icon(Icons.Default.Lock, null) },
                             onClick = {
                                 menuExpanded = false
                                 onMenuAction("new_incognito_tab")
                             }
                         )
+                        HorizontalDivider()
                         DropdownMenuItem(
-                            text = { Text("Reopen closed tab") },
+                            text = { Text("Ask Maria AI") },
+                            leadingIcon = { Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary) },
                             onClick = {
                                 menuExpanded = false
-                                onMenuAction("reopen_tab")
+                                onMenuAction("maria_ai")
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("RDP & Cloud Internet") },
+                            leadingIcon = { Icon(Icons.Default.Computer, null, tint = Color(0xFF10B981)) },
+                            onClick = {
+                                menuExpanded = false
+                                onMenuAction("rdp_manager")
                             }
                         )
                         HorizontalDivider()
@@ -430,6 +442,7 @@ fun NovaToolbar(
                         )
                         DropdownMenuItem(
                             text = { Text("History") },
+                            leadingIcon = { Icon(Icons.Default.History, null) },
                             onClick = {
                                 menuExpanded = false
                                 onMenuAction("history")
@@ -437,6 +450,7 @@ fun NovaToolbar(
                         )
                         DropdownMenuItem(
                             text = { Text("Downloads") },
+                            leadingIcon = { Icon(Icons.Default.Download, null) },
                             onClick = {
                                 menuExpanded = false
                                 onMenuAction("downloads")
@@ -444,32 +458,32 @@ fun NovaToolbar(
                         )
                         HorizontalDivider()
                         DropdownMenuItem(
-                            text = { Text("Find in page") },
+                            text = { Text(if (activeTab?.isDesktopMode == true) "Mobile site" else "Desktop site") },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, null) },
                             onClick = {
                                 menuExpanded = false
-                                onMenuAction("find")
+                                onMenuAction("toggle_desktop")
                             }
                         )
                         DropdownMenuItem(
-                            text = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Desktop site")
-                                    Spacer(modifier = Modifier.weight(1f))
-                                    Text(
-                                        text = if (activeTab?.isDesktopMode == true) "ON" else "OFF",
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (activeTab?.isDesktopMode == true) MaterialTheme.colorScheme.primary else Color.Gray,
-                                        fontSize = 12.sp
-                                    )
-                                }
-                            },
+                            text = { Text("Find in page") },
+                            leadingIcon = { Icon(Icons.Default.Search, null) },
                             onClick = {
                                 menuExpanded = false
-                                onMenuAction("desktop_mode")
+                                onMenuAction("find_in_page")
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Zoom") },
+                            leadingIcon = { Icon(Icons.Default.ZoomIn, null) },
+                            onClick = {
+                                menuExpanded = false
+                                onMenuAction("zoom")
                             }
                         )
                         DropdownMenuItem(
                             text = { Text("Share...") },
+                            leadingIcon = { Icon(Icons.Default.Share, null) },
                             onClick = {
                                 menuExpanded = false
                                 onMenuAction("share")
@@ -477,27 +491,16 @@ fun NovaToolbar(
                         )
                         DropdownMenuItem(
                             text = { Text("Print...") },
+                            leadingIcon = { Icon(Icons.Default.Print, null) },
                             onClick = {
                                 menuExpanded = false
                                 onMenuAction("print")
                             }
                         )
-                        DropdownMenuItem(
-                            text = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Zoom")
-                                    Spacer(modifier = Modifier.weight(1f))
-                                    Text("+ / -", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
-                                }
-                            },
-                            onClick = {
-                                menuExpanded = false
-                                onMenuAction("zoom_dialog")
-                            }
-                        )
                         HorizontalDivider()
                         DropdownMenuItem(
                             text = { Text("Settings") },
+                            leadingIcon = { Icon(Icons.Default.Settings, null) },
                             onClick = {
                                 menuExpanded = false
                                 onMenuAction("settings")
@@ -507,15 +510,15 @@ fun NovaToolbar(
                 }
             }
 
-            // Web Loading Progress Bar
-            AnimatedVisibility(visible = activeTab?.isLoading == true) {
+            // Page loading progress bar
+            if (activeTab?.isLoading == true) {
                 LinearProgressIndicator(
-                    progress = { (activeTab?.progress ?: 0) / 100f },
+                    progress = { (activeTab.progress / 100f).coerceIn(0.05f, 1f) },
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = Color.Transparent,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(2.5.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = Color.Transparent
+                        .height(2.5.dp)
                 )
             }
         }

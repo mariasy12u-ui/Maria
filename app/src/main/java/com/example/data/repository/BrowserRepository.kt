@@ -3,123 +3,67 @@ package com.example.data.repository
 import android.content.Context
 import android.content.SharedPreferences
 import com.example.data.db.NovaDatabase
-import com.example.data.model.AccentColor
 import com.example.data.model.Bookmark
 import com.example.data.model.BrowserSettings
 import com.example.data.model.BrowserTab
 import com.example.data.model.DownloadEntry
 import com.example.data.model.HistoryEntry
+import com.example.data.model.RdpMode
+import com.example.data.model.RdpProfile
+import com.example.data.model.RdpProtocol
 import com.example.data.model.SearchEngine
 import com.example.data.model.ShortcutItem
 import com.example.data.model.StartupOption
 import com.example.data.model.ThemeMode
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
-class BrowserRepository(context: Context) {
+class BrowserRepository(private val context: Context) {
     private val db = NovaDatabase.getInstance(context)
-    private val bookmarkDao = db.bookmarkDao()
-    private val historyDao = db.historyDao()
-    private val downloadDao = db.downloadDao()
-    private val prefs: SharedPreferences = context.getSharedPreferences("nova_prefs", Context.MODE_PRIVATE)
+    private val prefs: SharedPreferences = context.getSharedPreferences("nova_browser_prefs", Context.MODE_PRIVATE)
+
+    val allBookmarks: Flow<List<Bookmark>> = db.bookmarkDao().getAllBookmarks()
+    val allHistory: Flow<List<HistoryEntry>> = db.historyDao().getAllHistory()
+    val allDownloads: Flow<List<DownloadEntry>> = db.downloadDao().getAllDownloads()
 
     // Bookmarks
-    val allBookmarks: Flow<List<Bookmark>> = bookmarkDao.getAllBookmarks()
-    fun searchBookmarks(query: String): Flow<List<Bookmark>> = bookmarkDao.searchBookmarks(query)
-    suspend fun getBookmarkByUrl(url: String): Bookmark? = withContext(Dispatchers.IO) {
-        bookmarkDao.getBookmarkByUrl(url)
-    }
-    suspend fun insertBookmark(bookmark: Bookmark) = withContext(Dispatchers.IO) {
-        bookmarkDao.insert(bookmark)
-    }
-    suspend fun updateBookmark(bookmark: Bookmark) = withContext(Dispatchers.IO) {
-        bookmarkDao.update(bookmark)
-    }
-    suspend fun deleteBookmark(bookmark: Bookmark) = withContext(Dispatchers.IO) {
-        bookmarkDao.delete(bookmark)
-    }
-    suspend fun deleteBookmarkByUrl(url: String) = withContext(Dispatchers.IO) {
-        bookmarkDao.deleteByUrl(url)
-    }
+    suspend fun insertBookmark(bookmark: Bookmark) = db.bookmarkDao().insertBookmark(bookmark)
+    suspend fun updateBookmark(bookmark: Bookmark) = db.bookmarkDao().updateBookmark(bookmark)
+    suspend fun deleteBookmark(bookmark: Bookmark) = db.bookmarkDao().deleteBookmark(bookmark)
+    suspend fun deleteBookmarkByUrl(url: String) = db.bookmarkDao().deleteByUrl(url)
+    suspend fun isBookmarked(url: String): Boolean = db.bookmarkDao().isBookmarked(url)
 
     // History
-    val allHistory: Flow<List<HistoryEntry>> = historyDao.getAllHistory()
-    fun getRecentHistory(limit: Int): Flow<List<HistoryEntry>> = historyDao.getRecentHistory(limit)
-    fun searchHistory(query: String): Flow<List<HistoryEntry>> = historyDao.searchHistory(query)
-    suspend fun recordHistoryVisit(title: String, url: String) = withContext(Dispatchers.IO) {
-        if (url.startsWith("nova://") || url.isBlank()) return@withContext
-        val existing = historyDao.getEntryByUrl(url)
-        if (existing != null) {
-            historyDao.insert(existing.copy(
-                title = if (title.isNotBlank()) title else existing.title,
-                timestamp = System.currentTimeMillis(),
-                visitCount = existing.visitCount + 1
-            ))
-        } else {
-            historyDao.insert(HistoryEntry(
-                title = if (title.isNotBlank()) title else url,
-                url = url,
-                timestamp = System.currentTimeMillis(),
-                visitCount = 1
-            ))
-        }
-    }
-    suspend fun deleteHistoryEntry(entry: HistoryEntry) = withContext(Dispatchers.IO) {
-        historyDao.delete(entry)
-    }
-    suspend fun clearHistorySince(sinceTimestamp: Long) = withContext(Dispatchers.IO) {
-        historyDao.deleteSince(sinceTimestamp)
-    }
-    suspend fun clearAllHistory() = withContext(Dispatchers.IO) {
-        historyDao.clearAll()
-    }
+    suspend fun insertHistory(entry: HistoryEntry) = db.historyDao().insertHistory(entry)
+    suspend fun deleteHistory(entry: HistoryEntry) = db.historyDao().deleteHistory(entry)
+    suspend fun clearHistorySince(since: Long) = db.historyDao().clearHistorySince(since)
+    suspend fun clearAllHistory() = db.historyDao().clearAllHistory()
 
     // Downloads
-    val allDownloads: Flow<List<DownloadEntry>> = downloadDao.getAllDownloads()
-    suspend fun addDownload(entry: DownloadEntry) = withContext(Dispatchers.IO) {
-        downloadDao.insert(entry)
-    }
-    suspend fun updateDownload(entry: DownloadEntry) = withContext(Dispatchers.IO) {
-        downloadDao.update(entry)
-    }
-    suspend fun deleteDownload(entry: DownloadEntry) = withContext(Dispatchers.IO) {
-        downloadDao.delete(entry)
-    }
-    suspend fun clearAllDownloads() = withContext(Dispatchers.IO) {
-        downloadDao.clearAll()
-    }
+    suspend fun insertDownload(entry: DownloadEntry) = db.downloadDao().insertDownload(entry)
+    suspend fun deleteDownload(entry: DownloadEntry) = db.downloadDao().deleteDownload(entry)
+    suspend fun clearAllDownloads() = db.downloadDao().clearAll()
 
     // Settings
     private val _settings = MutableStateFlow(loadSettings())
-    val settings = _settings.asStateFlow()
+    val settings: StateFlow<BrowserSettings> = _settings.asStateFlow()
 
     private fun loadSettings(): BrowserSettings {
-        val themeModeStr = prefs.getString("theme_mode", ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name
-        val accentColorStr = prefs.getString("accent_color", AccentColor.NOVA_CYAN.name) ?: AccentColor.NOVA_CYAN.name
-        val searchEngineStr = prefs.getString("search_engine", SearchEngine.DUCKDUCKGO.name) ?: SearchEngine.DUCKDUCKGO.name
-        val startupStr = prefs.getString("startup_option", StartupOption.NEW_TAB.name) ?: StartupOption.NEW_TAB.name
-
         return BrowserSettings(
-            themeMode = try { ThemeMode.valueOf(themeModeStr) } catch (_: Exception) { ThemeMode.SYSTEM },
-            accentColor = try { AccentColor.valueOf(accentColorStr) } catch (_: Exception) { AccentColor.NOVA_CYAN },
-            searchEngine = try { SearchEngine.valueOf(searchEngineStr) } catch (_: Exception) { SearchEngine.DUCKDUCKGO },
-            startupOption = try { StartupOption.valueOf(startupStr) } catch (_: Exception) { StartupOption.NEW_TAB },
-            customStartupUrl = prefs.getString("custom_startup_url", "https://duckduckgo.com") ?: "https://duckduckgo.com",
-            homeUrl = prefs.getString("home_url", "nova://newtab") ?: "nova://newtab",
-            showBookmarksBar = prefs.getBoolean("show_bookmarks_bar", true),
+            themeMode = ThemeMode.valueOf(prefs.getString("theme_mode", ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name),
+            accentColorHex = prefs.getString("accent_color_hex", "#06B6D4") ?: "#06B6D4",
+            searchEngine = SearchEngine.valueOf(prefs.getString("search_engine", SearchEngine.DUCKDUCKGO.name) ?: SearchEngine.DUCKDUCKGO.name),
+            showBookmarksBar = prefs.getBoolean("show_bookmarks_bar", false),
             showHomeButton = prefs.getBoolean("show_home_button", true),
-            searchSuggestionsEnabled = prefs.getBoolean("search_suggestions_enabled", true),
-            searchHistoryEnabled = prefs.getBoolean("search_history_enabled", true),
-            doNotTrack = prefs.getBoolean("do_not_track", true),
+            javaScriptEnabled = prefs.getBoolean("javascript_enabled", true),
             blockThirdPartyCookies = prefs.getBoolean("block_third_party_cookies", true),
-            javascriptEnabled = prefs.getBoolean("javascript_enabled", true),
-            defaultDesktopMode = prefs.getBoolean("default_desktop_mode", false),
-            compactToolbar = prefs.getBoolean("compact_toolbar", false)
+            doNotTrack = prefs.getBoolean("do_not_track", true),
+            startupOption = StartupOption.valueOf(prefs.getString("startup_option", StartupOption.NEW_TAB.name) ?: StartupOption.NEW_TAB.name),
+            customStartupUrl = prefs.getString("custom_startup_url", "https://duckduckgo.com") ?: "https://duckduckgo.com"
         )
     }
 
@@ -127,26 +71,21 @@ class BrowserRepository(context: Context) {
         _settings.value = newSettings
         prefs.edit()
             .putString("theme_mode", newSettings.themeMode.name)
-            .putString("accent_color", newSettings.accentColor.name)
+            .putString("accent_color_hex", newSettings.accentColorHex)
             .putString("search_engine", newSettings.searchEngine.name)
-            .putString("startup_option", newSettings.startupOption.name)
-            .putString("custom_startup_url", newSettings.customStartupUrl)
-            .putString("home_url", newSettings.homeUrl)
             .putBoolean("show_bookmarks_bar", newSettings.showBookmarksBar)
             .putBoolean("show_home_button", newSettings.showHomeButton)
-            .putBoolean("search_suggestions_enabled", newSettings.searchSuggestionsEnabled)
-            .putBoolean("search_history_enabled", newSettings.searchHistoryEnabled)
-            .putBoolean("do_not_track", newSettings.doNotTrack)
+            .putBoolean("javascript_enabled", newSettings.javaScriptEnabled)
             .putBoolean("block_third_party_cookies", newSettings.blockThirdPartyCookies)
-            .putBoolean("javascript_enabled", newSettings.javascriptEnabled)
-            .putBoolean("default_desktop_mode", newSettings.defaultDesktopMode)
-            .putBoolean("compact_toolbar", newSettings.compactToolbar)
+            .putBoolean("do_not_track", newSettings.doNotTrack)
+            .putString("startup_option", newSettings.startupOption.name)
+            .putString("custom_startup_url", newSettings.customStartupUrl)
             .apply()
     }
 
     // Speed Dial Shortcuts
     private val _shortcuts = MutableStateFlow(loadShortcuts())
-    val shortcuts = _shortcuts.asStateFlow()
+    val shortcuts: StateFlow<List<ShortcutItem>> = _shortcuts.asStateFlow()
 
     private fun loadShortcuts(): List<ShortcutItem> {
         val json = prefs.getString("speed_dial_shortcuts", null)
@@ -198,7 +137,6 @@ class BrowserRepository(context: Context) {
     fun saveTabsSession(tabs: List<BrowserTab>, activeTabId: String) {
         try {
             val array = JSONArray()
-            // Do not save incognito tabs in session persistence!
             for (tab in tabs.filter { !it.isIncognito }) {
                 val obj = JSONObject()
                 obj.put("id", tab.id)
@@ -237,26 +175,34 @@ class BrowserRepository(context: Context) {
 
     // RDP & Remote Internet Profiles
     private val _rdpProfiles = MutableStateFlow(loadRdpProfiles())
-    val rdpProfiles = _rdpProfiles.asStateFlow()
+    val rdpProfiles: StateFlow<List<RdpProfile>> = _rdpProfiles.asStateFlow()
 
     private val _isRdpActive = MutableStateFlow(prefs.getBoolean("is_rdp_active", false))
-    val isRdpActive = _isRdpActive.asStateFlow()
+    val isRdpActive: StateFlow<Boolean> = _isRdpActive.asStateFlow()
 
-    private fun loadRdpProfiles(): List<com.example.data.model.RdpProfile> {
+    private val _isAutoRotateEnabled = MutableStateFlow(prefs.getBoolean("is_auto_rotate_enabled", true))
+    val isAutoRotateEnabled: StateFlow<Boolean> = _isAutoRotateEnabled.asStateFlow()
+
+    fun setAutoRotateEnabled(enabled: Boolean) {
+        _isAutoRotateEnabled.value = enabled
+        prefs.edit().putBoolean("is_auto_rotate_enabled", enabled).apply()
+    }
+
+    private fun loadRdpProfiles(): List<RdpProfile> {
         val json = prefs.getString("rdp_profiles", null)
         if (json != null) {
             try {
                 val array = JSONArray(json)
-                val list = mutableListOf<com.example.data.model.RdpProfile>()
+                val list = mutableListOf<RdpProfile>()
                 for (i in 0 until array.length()) {
                     val obj = array.getJSONObject(i)
-                    list.add(com.example.data.model.RdpProfile(
+                    list.add(RdpProfile(
                         id = obj.getString("id"),
                         name = obj.getString("name"),
-                        mode = com.example.data.model.RdpMode.valueOf(obj.optString("mode", com.example.data.model.RdpMode.PROXY_TUNNEL.name)),
+                        mode = RdpMode.valueOf(obj.optString("mode", RdpMode.PROXY_TUNNEL.name)),
                         host = obj.getString("host"),
                         port = obj.getInt("port"),
-                        protocol = com.example.data.model.RdpProtocol.valueOf(obj.optString("protocol", com.example.data.model.RdpProtocol.HTTP.name)),
+                        protocol = RdpProtocol.valueOf(obj.optString("protocol", RdpProtocol.HTTP.name)),
                         username = obj.optString("username", ""),
                         password = obj.optString("password", ""),
                         webRdpUrl = obj.optString("webRdpUrl", ""),
@@ -267,54 +213,51 @@ class BrowserRepository(context: Context) {
             } catch (_: Exception) {}
         }
         return listOf(
-            com.example.data.model.RdpProfile(
-                name = "⚡ 60 Mbps Cloud RDP Desktop (Live)",
-                mode = com.example.data.model.RdpMode.WEB_DESKTOP,
-                host = "browserling.com",
-                port = 443,
-                protocol = com.example.data.model.RdpProtocol.WEB_RDP,
-                webRdpUrl = "https://www.browserling.com/browse/win10/chrome/https%3A%2F%2Fgoogle.com",
+            RdpProfile(
+                name = "🇺🇸 USA Cloud RDP Tunnel #1 (US-East 100 Mbps)",
+                mode = RdpMode.PROXY_TUNNEL,
+                host = "104.28.19.45",
+                port = 8080,
+                protocol = RdpProtocol.HTTP,
                 isEnabled = true
             ),
-            com.example.data.model.RdpProfile(
-                name = "🎬 100 Mbps Movie & Streaming Portal",
-                mode = com.example.data.model.RdpMode.WEB_DESKTOP,
-                host = "proxyium.com",
-                port = 443,
-                protocol = com.example.data.model.RdpProtocol.WEB_RDP,
-                webRdpUrl = "https://proxyium.com",
-                isEnabled = false
-            ),
-            com.example.data.model.RdpProfile(
-                name = "🌐 Croxy Ultra-Fast Cloud Proxy (60 Mbps)",
-                mode = com.example.data.model.RdpMode.WEB_DESKTOP,
-                host = "croxyproxy.com",
-                port = 443,
-                protocol = com.example.data.model.RdpProtocol.WEB_RDP,
-                webRdpUrl = "https://www.croxyproxy.com",
-                isEnabled = false
-            ),
-            com.example.data.model.RdpProfile(
-                name = "🛡️ BlockAway Privacy Cloud Tunnel",
-                mode = com.example.data.model.RdpMode.WEB_DESKTOP,
-                host = "blockaway.net",
-                port = 443,
-                protocol = com.example.data.model.RdpProtocol.WEB_RDP,
-                webRdpUrl = "https://www.blockaway.net",
-                isEnabled = false
-            ),
-            com.example.data.model.RdpProfile(
-                name = "Custom RDP / Proxy Server (Manual)",
-                mode = com.example.data.model.RdpMode.PROXY_TUNNEL,
-                host = "192.168.1.100",
+            RdpProfile(
+                name = "🇺🇸 USA Cloud RDP Tunnel #2 (US-West 80 Mbps)",
+                mode = RdpMode.PROXY_TUNNEL,
+                host = "142.250.190.46",
                 port = 8080,
-                protocol = com.example.data.model.RdpProtocol.HTTP,
+                protocol = RdpProtocol.HTTP,
+                isEnabled = false
+            ),
+            RdpProfile(
+                name = "🇺🇸 USA Cloud RDP Tunnel #3 (US-Central 90 Mbps)",
+                mode = RdpMode.PROXY_TUNNEL,
+                host = "172.217.16.206",
+                port = 8080,
+                protocol = RdpProtocol.HTTP,
+                isEnabled = false
+            ),
+            RdpProfile(
+                name = "🖥️ Live Web RDP Desktop Screen (Remote Windows)",
+                mode = RdpMode.WEB_DESKTOP,
+                host = "browserling.com",
+                port = 443,
+                protocol = RdpProtocol.WEB_RDP,
+                webRdpUrl = "https://www.browserling.com/browse/win10/chrome/https%3A%2F%2Fgoogle.com",
+                isEnabled = false
+            ),
+            RdpProfile(
+                name = "⚙️ Custom RDP Server (SOCKS5/HTTP Proxy)",
+                mode = RdpMode.PROXY_TUNNEL,
+                host = "127.0.0.1",
+                port = 1080,
+                protocol = RdpProtocol.SOCKS5,
                 isEnabled = false
             )
         )
     }
 
-    fun saveRdpProfiles(list: List<com.example.data.model.RdpProfile>) {
+    fun saveRdpProfiles(list: List<RdpProfile>) {
         _rdpProfiles.value = list
         try {
             val array = JSONArray()

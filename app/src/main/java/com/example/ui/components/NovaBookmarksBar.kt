@@ -5,6 +5,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -12,7 +13,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.Public
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -34,44 +34,42 @@ fun NovaBookmarksBar(
 ) {
     if (bookmarks.isEmpty()) return
 
-    val scrollState = rememberScrollState()
-
     Surface(
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 1.dp,
-        modifier = modifier.fillMaxWidth()
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+        modifier = modifier
+            .fillMaxWidth()
+            .height(30.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(scrollState)
-                .padding(horizontal = 8.dp, vertical = 4.dp)
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 8.dp)
         ) {
-            bookmarks.take(12).forEach { item ->
+            bookmarks.take(10).forEach { bookmark ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .padding(end = 8.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .clickable { onOpenBookmark(item.url) }
-                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .clickable { onOpenBookmark(bookmark.url) }
+                        .padding(horizontal = 6.dp, vertical = 3.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Public,
+                        imageVector = Icons.Default.Bookmark,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(13.dp)
+                        modifier = Modifier.size(12.dp)
                     )
-                    Spacer(modifier = Modifier.width(5.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = item.title,
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        text = bookmark.title,
+                        fontSize = 11.sp,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
+                Spacer(modifier = Modifier.width(4.dp))
             }
         }
     }

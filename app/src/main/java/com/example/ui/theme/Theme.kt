@@ -10,81 +10,69 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import com.example.data.model.AccentColor
 import com.example.data.model.ThemeMode
 
-fun getNovaDarkColorScheme(accentHex: Long = 0xFF0EA5E9): androidx.compose.material3.ColorScheme {
-    val accent = Color(accentHex)
-    return darkColorScheme(
-        primary = accent,
-        onPrimary = Color.White,
-        primaryContainer = Color(accentHex).copy(alpha = 0.2f),
-        onPrimaryContainer = Color.White,
-        secondary = NovaIndigoSecondary,
-        onSecondary = Color.White,
-        tertiary = NovaVioletAccent,
-        background = NovaDarkBackground,
-        onBackground = NovaDarkTextPrimary,
-        surface = NovaDarkSurface,
-        onSurface = NovaDarkTextPrimary,
-        surfaceVariant = NovaDarkSurfaceVariant,
-        onSurfaceVariant = NovaDarkTextSecondary,
-        outline = NovaDarkBorder
-    )
-}
+private val DarkColorScheme = darkColorScheme(
+    primary = NovaCyan,
+    secondary = ElectricViolet,
+    tertiary = EmeraldGreen,
+    background = Color(0xFF0F172A),
+    surface = Color(0xFF1E293B),
+    surfaceVariant = Color(0xFF334155),
+    onPrimary = Color.Black,
+    onSecondary = Color.White,
+    onTertiary = Color.White,
+    onBackground = Color(0xFFF8FAFC),
+    onSurface = Color(0xFFF8FAFC),
+    onSurfaceVariant = Color(0xFF94A3B8)
+)
 
-fun getNovaLightColorScheme(accentHex: Long = 0xFF0EA5E9): androidx.compose.material3.ColorScheme {
-    val accent = Color(accentHex)
-    return lightColorScheme(
-        primary = accent,
-        onPrimary = Color.White,
-        primaryContainer = Color(accentHex).copy(alpha = 0.12f),
-        onPrimaryContainer = Color(accentHex),
-        secondary = NovaIndigoSecondary,
-        onSecondary = Color.White,
-        tertiary = NovaVioletAccent,
-        background = NovaLightBackground,
-        onBackground = NovaLightTextPrimary,
-        surface = NovaLightSurface,
-        onSurface = NovaLightTextPrimary,
-        surfaceVariant = NovaLightSurfaceVariant,
-        onSurfaceVariant = NovaLightTextSecondary,
-        outline = NovaLightBorder
-    )
-}
-
-val IncognitoColorScheme = darkColorScheme(
-    primary = IncognitoAccent,
+private val LightColorScheme = lightColorScheme(
+    primary = NovaCyan,
+    secondary = ElectricViolet,
+    tertiary = EmeraldGreen,
+    background = Color(0xFFF8FAFC),
+    surface = Color.White,
+    surfaceVariant = Color(0xFFF1F5F9),
     onPrimary = Color.White,
-    primaryContainer = Color(0xFF3B1E63),
-    onPrimaryContainer = IncognitoText,
-    secondary = Color(0xFFC084FC),
-    background = IncognitoBackground,
-    onBackground = IncognitoText,
-    surface = IncognitoSurface,
-    onSurface = IncognitoText,
-    surfaceVariant = IncognitoSurfaceVariant,
-    onSurfaceVariant = Color(0xFFD8B4FE),
-    outline = Color(0xFF4C2889)
+    onSecondary = Color.White,
+    onTertiary = Color.White,
+    onBackground = Color(0xFF0F172A),
+    onSurface = Color(0xFF0F172A),
+    onSurfaceVariant = Color(0xFF64748B)
+)
+
+private val IncognitoColorScheme = darkColorScheme(
+    primary = Color(0xFFA855F7),
+    secondary = Color(0xFF64748B),
+    tertiary = Color(0xFF38BDF8),
+    background = Color(0xFF090D16),
+    surface = Color(0xFF131B2E),
+    surfaceVariant = Color(0xFF1E293B),
+    onPrimary = Color.White,
+    onSecondary = Color.White,
+    onBackground = Color(0xFFE2E8F0),
+    onSurface = Color(0xFFE2E8F0),
+    onSurfaceVariant = Color(0xFF94A3B8)
 )
 
 @Composable
 fun NovaBrowserTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
-    accentColor: AccentColor = AccentColor.NOVA_CYAN,
+    accentColor: Color = NovaCyan,
     isIncognito: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val darkTheme = when (themeMode) {
-        ThemeMode.SYSTEM -> isSystemInDarkTheme()
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
     }
 
     val colorScheme = when {
         isIncognito -> IncognitoColorScheme
-        darkTheme -> getNovaDarkColorScheme(accentColor.hex)
-        else -> getNovaLightColorScheme(accentColor.hex)
+        darkTheme -> DarkColorScheme.copy(primary = accentColor)
+        else -> LightColorScheme.copy(primary = accentColor)
     }
 
     MaterialTheme(

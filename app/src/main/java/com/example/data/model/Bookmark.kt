@@ -5,11 +5,11 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "bookmarks")
 data class Bookmark(
-    @PrimaryKey(autoGenerate = true)
-    val id: Long = 0,
+    @PrimaryKey
+    val id: String = java.util.UUID.randomUUID().toString(),
     val title: String,
     val url: String,
-    val folder: String = "Mobile Bookmarks",
     val faviconUrl: String? = null,
+    val folder: String = "Mobile Bookmarks",
     val createdAt: Long = System.currentTimeMillis()
 )

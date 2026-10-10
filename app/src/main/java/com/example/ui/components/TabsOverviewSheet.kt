@@ -6,7 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,15 +17,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Pin
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -34,9 +33,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -67,10 +68,14 @@ fun TabsOverviewSheet(
     onDismiss: () -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var selectedCategory by remember { mutableIntStateOf(0) } // 0: Regular, 1: Incognito
+    var selectedFilterIndex by remember { mutableIntStateOf(0) }
 
-    val filteredTabs = tabs.filter {
-        if (selectedCategory == 1) it.isIncognito else !it.isIncognito
+    val filteredTabs = remember(tabs, selectedFilterIndex) {
+        when (selectedFilterIndex) {
+            1 -> tabs.filter { !it.isIncognito }
+            2 -> tabs.filter { it.isIncognito }
+            else -> tabs
+        }
     }
 
     ModalBottomSheet(
@@ -84,7 +89,7 @@ fun TabsOverviewSheet(
                 .fillMaxSize()
                 .padding(horizontal = 16.dp)
         ) {
-            // Header Row
+            // Header
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -100,21 +105,20 @@ fun TabsOverviewSheet(
 
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Reopen closed tab button
-                Text(
-                    text = "Reopen",
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier
-                        .clickable { onReopenClosedTab() }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                )
-
-                // New tab button
                 IconButton(
-                    onClick = { onNewTab(selectedCategory == 1) },
-                    modifier = Modifier.testTag("tabs_sheet_new_tab_button")
+                    onClick = onReopenClosedTab,
+                    modifier = Modifier.testTag("restore_closed_tab_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Restore,
+                        contentDescription = "Restore recently closed tab",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                IconButton(
+                    onClick = { onNewTab(selectedFilterIndex == 2) },
+                    modifier = Modifier.testTag("overview_new_tab_button")
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
@@ -124,150 +128,137 @@ fun TabsOverviewSheet(
                 }
             }
 
-            // Tabs Type Filter: Standard vs Incognito
+            // Filter Tabs
             TabRow(
-                selectedTabIndex = selectedCategory,
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .padding(vertical = 8.dp)
+                selectedTabIndex = selectedFilterIndex,
+                containerColor = Color.Transparent,
+                contentColor = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Tab(
-                    selected = selectedCategory == 0,
-                    onClick = { selectedCategory = 0 },
-                    text = {
-                        val count = tabs.count { !it.isIncognito }
-                        Text("Regular ($count)")
-                    }
+                    selected = selectedFilterIndex == 0,
+                    onClick = { selectedFilterIndex = 0 },
+                    text = { Text("All (${tabs.size})", fontSize = 12.sp) }
                 )
                 Tab(
-                    selected = selectedCategory == 1,
-                    onClick = { selectedCategory = 1 },
-                    text = {
-                        val count = tabs.count { it.isIncognito }
-                        Text("Incognito ($count)")
-                    }
+                    selected = selectedFilterIndex == 1,
+                    onClick = { selectedFilterIndex = 1 },
+                    text = { Text("Regular (${tabs.count { !it.isIncognito }})", fontSize = 12.sp) }
+                )
+                Tab(
+                    selected = selectedFilterIndex == 2,
+                    onClick = { selectedFilterIndex = 2 },
+                    text = { Text("Incognito (${tabs.count { it.isIncognito }})", fontSize = 12.sp) }
                 )
             }
 
-            if (filteredTabs.isEmpty()) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = if (selectedCategory == 1) Icons.Default.Shield else Icons.Default.Public,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = if (selectedCategory == 1) "No incognito tabs open" else "No regular tabs open",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 14.sp
-                        )
-                    }
-                }
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    contentPadding = PaddingValues(vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                ) {
-                    items(filteredTabs, key = { it.id }) { tab ->
-                        val isActive = tab.id == activeTabId
-                        Card(
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (isActive)
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-                                else
-                                    MaterialTheme.colorScheme.surfaceVariant
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(140.dp)
-                                .border(
-                                    width = if (isActive) 2.dp else 0.5.dp,
-                                    color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                .clickable { onSelectTab(tab.id) }
-                        ) {
-                            Column(
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Tabs Grid
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                items(filteredTabs, key = { it.id }) { tab ->
+                    val isActive = tab.id == activeTabId
+                    Card(
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isActive)
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                            else
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(150.dp)
+                            .border(
+                                width = if (isActive) 2.dp else 1.dp,
+                                color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                                shape = RoundedCornerShape(14.dp)
+                            )
+                            .clickable { onSelectTab(tab.id) }
+                            .testTag("tab_grid_item_${tab.id}")
+                    ) {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            // Tab card header
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(8.dp)
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
                             ) {
-                                // Top header with favicon, title & close
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
+                                if (tab.isIncognito) {
                                     Icon(
-                                        imageVector = if (tab.isIncognito) Icons.Default.Shield else Icons.Default.Public,
-                                        contentDescription = null,
-                                        tint = if (tab.isIncognito) Color(0xFFA855F7) else MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(14.dp)
+                                        imageVector = Icons.Default.Lock,
+                                        contentDescription = "Incognito",
+                                        tint = Color(0xFFA855F7),
+                                        modifier = Modifier.size(13.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = tab.title,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    IconButton(
-                                        onClick = { onCloseTab(tab.id) },
-                                        modifier = Modifier.size(22.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Close,
-                                            contentDescription = "Close",
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                    }
+                                    Spacer(modifier = Modifier.width(4.dp))
                                 }
 
-                                Spacer(modifier = Modifier.height(4.dp))
+                                if (tab.isPinned) {
+                                    Icon(
+                                        imageVector = Icons.Default.PushPin,
+                                        contentDescription = "Pinned",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                }
 
-                                // Domain subtitle
                                 Text(
-                                    text = tab.displayHost,
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    text = tab.title.ifBlank { tab.displayHost },
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
                                     maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    overflow = TextOverflow.Ellipsis,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f)
                                 )
 
-                                Spacer(modifier = Modifier.weight(1f))
-
-                                // Thumbnail preview representation
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(55.dp)
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
+                                IconButton(
+                                    onClick = { onCloseTab(tab.id) },
+                                    modifier = Modifier.size(20.dp)
                                 ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Close tab",
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
+
+                            // Tab Preview Placeholder
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f)
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.surface)
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        imageVector = Icons.Default.Public,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
                                     Text(
-                                        text = if (tab.isNewTab) "New Tab Dashboard" else tab.title.take(24),
+                                        text = tab.displayHost,
                                         fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 2,
+                                        maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.padding(6.dp)
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
@@ -275,6 +266,8 @@ fun TabsOverviewSheet(
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(10.dp))
         }
     }
 }

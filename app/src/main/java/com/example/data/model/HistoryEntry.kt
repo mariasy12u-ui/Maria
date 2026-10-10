@@ -5,10 +5,9 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "history")
 data class HistoryEntry(
-    @PrimaryKey(autoGenerate = true)
-    val id: Long = 0,
+    @PrimaryKey
+    val id: String = java.util.UUID.randomUUID().toString(),
     val title: String,
     val url: String,
-    val timestamp: Long = System.currentTimeMillis(),
-    val visitCount: Int = 1
+    val timestamp: Long = System.currentTimeMillis()
 )

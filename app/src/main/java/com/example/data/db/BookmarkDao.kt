@@ -14,24 +14,18 @@ interface BookmarkDao {
     @Query("SELECT * FROM bookmarks ORDER BY createdAt DESC")
     fun getAllBookmarks(): Flow<List<Bookmark>>
 
-    @Query("SELECT * FROM bookmarks WHERE url = :url LIMIT 1")
-    suspend fun getBookmarkByUrl(url: String): Bookmark?
-
-    @Query("SELECT * FROM bookmarks WHERE url = :url LIMIT 1")
-    fun observeBookmarkByUrl(url: String): Flow<Bookmark?>
-
-    @Query("SELECT * FROM bookmarks WHERE title LIKE '%' || :query || '%' OR url LIKE '%' || :query || '%' ORDER BY createdAt DESC")
-    fun searchBookmarks(query: String): Flow<List<Bookmark>>
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(bookmark: Bookmark): Long
+    suspend fun insertBookmark(bookmark: Bookmark)
 
     @Update
-    suspend fun update(bookmark: Bookmark)
+    suspend fun updateBookmark(bookmark: Bookmark)
 
     @Delete
-    suspend fun delete(bookmark: Bookmark)
+    suspend fun deleteBookmark(bookmark: Bookmark)
 
     @Query("DELETE FROM bookmarks WHERE url = :url")
     suspend fun deleteByUrl(url: String)
+
+    @Query("SELECT EXISTS(SELECT 1 FROM bookmarks WHERE url = :url)")
+    suspend fun isBookmarked(url: String): Boolean
 }

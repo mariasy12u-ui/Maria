@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item
-        android:width="66dp"
-        android:height="66dp"
-        android:drawable="@drawable/nova_browser_logo"
-        android:gravity="center" />
-</layer-list>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#06B6D4"
+        android:pathData="M54,20 C35.2,20 20,35.2 20,54 C20,72.8 35.2,88 54,88 C72.8,88 88,72.8 88,54 C88,35.2 72.8,20 54,20 Z M54,28 C68.3,28 80,39.7 80,54 C80,68.3 68.3,80 54,80 C39.7,80 28,68.3 28,54 C28,39.7 39.7,28 54,28 Z" />
+    <path
+        android:fillColor="#6366F1"
+        android:pathData="M54,34 L66,54 L54,74 L42,54 Z" />
+</vector>

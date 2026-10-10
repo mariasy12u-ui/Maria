@@ -9,11 +9,7 @@ import com.example.data.model.DownloadEntry
 import com.example.data.model.HistoryEntry
 
 @Database(
-    entities = [
-        Bookmark::class,
-        HistoryEntry::class,
-        DownloadEntry::class
-    ],
+    entities = [Bookmark::class, HistoryEntry::class, DownloadEntry::class],
     version = 1,
     exportSchema = false
 )
@@ -32,7 +28,9 @@ abstract class NovaDatabase : RoomDatabase() {
                     context.applicationContext,
                     NovaDatabase::class.java,
                     "nova_browser.db"
-                ).fallbackToDestructiveMigration().build()
+                )
+                    .fallbackToDestructiveMigration(true)
+                    .build()
                 INSTANCE = instance
                 instance
             }

@@ -8,7 +8,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -19,9 +19,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Pin
-import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -53,86 +52,82 @@ fun NovaTabBar(
 
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        modifier = modifier.fillMaxWidth()
+        modifier = modifier.height(36.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
-                .fillMaxWidth()
                 .horizontalScroll(scrollState)
-                .padding(horizontal = 4.dp, vertical = 2.dp)
+                .padding(horizontal = 4.dp)
         ) {
             tabs.forEach { tab ->
                 val isActive = tab.id == activeTabId
-                val tabBg by animateColorAsState(
+                val tabBackground by animateColorAsState(
                     targetValue = if (isActive)
                         MaterialTheme.colorScheme.surface
                     else
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                    label = "tabBg"
+                        Color.Transparent,
+                    label = "tab_bg"
                 )
 
                 Box(
                     modifier = Modifier
-                        .padding(horizontal = 2.dp, vertical = 2.dp)
-                        .clip(RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp, bottomStart = 4.dp, bottomEnd = 4.dp))
-                        .background(tabBg)
-                        .border(
-                            width = if (isActive) 1.dp else 0.5.dp,
-                            color = if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f) else Color.Transparent,
-                            shape = RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp, bottomStart = 4.dp, bottomEnd = 4.dp)
-                        )
+                        .fillMaxHeight()
+                        .widthIn(min = 100.dp, max = 160.dp)
+                        .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+                        .background(tabBackground)
                         .clickable { onSelectTab(tab.id) }
-                        .height(34.dp)
-                        .widthIn(min = 90.dp, max = 180.dp)
-                        .padding(start = 8.dp, end = 4.dp),
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                        .testTag("tab_item_${tab.id}"),
                     contentAlignment = Alignment.CenterStart
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxHeight()
                     ) {
-                        // Favicon / Mode icon
-                        Icon(
-                            imageVector = when {
-                                tab.isIncognito -> Icons.Default.Shield
-                                else -> Icons.Default.Public
-                            },
-                            contentDescription = null,
-                            tint = if (tab.isIncognito) Color(0xFFA855F7) else MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(13.dp)
-                        )
-
-                        Spacer(modifier = Modifier.width(6.dp))
-
-                        Text(
-                            text = tab.title,
-                            fontSize = 12.sp,
-                            fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
-                            color = if (isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-
                         if (tab.isPinned) {
                             Icon(
-                                imageVector = Icons.Default.Pin,
+                                imageVector = Icons.Default.PushPin,
                                 contentDescription = "Pinned",
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(12.dp)
                             )
-                        } else {
-                            Box(
+                            Spacer(modifier = Modifier.width(4.dp))
+                        }
+
+                        if (tab.isIncognito) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = "Incognito",
+                                tint = Color(0xFFA855F7),
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                        }
+
+                        Text(
+                            text = tab.title.ifBlank { tab.displayHost },
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            fontSize = 12.sp,
+                            fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (isActive)
+                                MaterialTheme.colorScheme.onSurface
+                            else
+                                MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        if (!tab.isPinned) {
+                            IconButton(
+                                onClick = { onCloseTab(tab.id) },
                                 modifier = Modifier
-                                    .size(20.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .clickable { onCloseTab(tab.id) },
-                                contentAlignment = Alignment.Center
+                                    .size(18.dp)
+                                    .testTag("close_tab_${tab.id}")
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Close,
-                                    contentDescription = "Close Tab",
+                                    contentDescription = "Close tab",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(12.dp)
                                 )
@@ -140,21 +135,21 @@ fun NovaTabBar(
                         }
                     }
                 }
+                Spacer(modifier = Modifier.width(2.dp))
             }
 
-            // Plus (+) button for new tab
+            // New Tab "+" Button
             IconButton(
                 onClick = onNewTab,
                 modifier = Modifier
-                    .size(30.dp)
-                    .padding(start = 2.dp)
-                    .testTag("tab_bar_new_tab_button")
+                    .size(28.dp)
+                    .testTag("tabbar_new_tab_button")
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = "New Tab",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp)
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp)
                 )
             }
         }

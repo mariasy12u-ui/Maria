@@ -26,35 +26,44 @@ import com.example.data.repository.BrowserRepository
 import com.example.web.RdpNetworkManager
 import com.example.web.TabWebViewManager
 import com.example.web.WebUtils
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-sealed class BrowserSheet {
-    object None : BrowserSheet()
-    object TabsGrid : BrowserSheet()
-    object Bookmarks : BrowserSheet()
-    object History : BrowserSheet()
-    object Downloads : BrowserSheet()
-    object Settings : BrowserSheet()
-    object SiteSecurity : BrowserSheet()
-    object ClearData : BrowserSheet()
-    object RdpManager : BrowserSheet()
-    data class EditRdpProfile(val profile: RdpProfile?) : BrowserSheet()
-    data class EditShortcut(val shortcut: ShortcutItem?) : BrowserSheet()
-    data class ContextMenu(val type: Int, val target: String) : BrowserSheet()
+sealed interface BrowserSheet {
+    data object None : BrowserSheet
+    data object TabsOverview : BrowserSheet
+    data object Bookmarks : BrowserSheet
+    data object History : BrowserSheet
+    data object Downloads : BrowserSheet
+    data object Settings : BrowserSheet
+    data object SiteSecurity : BrowserSheet
+    data object RdpManager : BrowserSheet
+    data object MariaAi : BrowserSheet
+    data class EditShortcut(val shortcut: ShortcutItem?) : BrowserSheet
+    data class EditRdpProfile(val profile: RdpProfile?) : BrowserSheet
+    data class ContextMenu(val target: String) : BrowserSheet
+    data object Zoom : BrowserSheet
 }
 
-enum class ClearDataRange(val label: String) {
-    LAST_HOUR("Last hour"),
-    LAST_24_HOURS("Last 24 hours"),
-    LAST_7_DAYS("Last 7 days"),
-    ALL_TIME("All time")
+enum class ClearDataRange(val displayName: String, val durationMillis: Long) {
+    LAST_HOUR("Last hour", 3600_000L),
+    LAST_24_HOURS("Last 24 hours", 86400_000L),
+    LAST_7_DAYS("Last 7 days", 7 * 86400_000L),
+    ALL_TIME("All time", Long.MAX_VALUE)
+}
+
+enum class SuggestionType {
+    SEARCH,
+    DIRECT_URL,
+    BOOKMARK,
+    HISTORY
 }
 
 data class OmniboxSuggestion(
@@ -64,18 +73,11 @@ data class OmniboxSuggestion(
     val actionUrl: String
 )
 
-enum class SuggestionType {
-    SEARCH,
-    DIRECT_URL,
-    BOOKMARK,
-    HISTORY
-}
-
 class NovaBrowserViewModel(
     private val repository: BrowserRepository,
     val webViewManager: TabWebViewManager,
     val rdpNetworkManager: RdpNetworkManager
-) : ViewModel() {
+) : ViewModel(), TabWebViewManager.TabCallback {
 
     val settings: StateFlow<BrowserSettings> = repository.settings
     val bookmarks: StateFlow<List<Bookmark>> = repository.allBookmarks
@@ -98,6 +100,11 @@ class NovaBrowserViewModel(
 
     private val _isCheckingIp = MutableStateFlow(false)
     val isCheckingIp: StateFlow<Boolean> = _isCheckingIp.asStateFlow()
+
+    // 5-Minute USA IP Auto-Rotation
+    val isAutoRotateEnabled: StateFlow<Boolean> = repository.isAutoRotateEnabled
+    private val _autoRotateSecondsLeft = MutableStateFlow(300)
+    val autoRotateSecondsLeft: StateFlow<Int> = _autoRotateSecondsLeft.asStateFlow()
 
     // Tabs State
     private val _tabs = MutableStateFlow<List<BrowserTab>>(listOf(BrowserTab()))
@@ -163,6 +170,21 @@ class NovaBrowserViewModel(
                 _activeTabId.value = _tabs.value.first().id
             }
         }
+
+        // Auto-rotation timer loop: every second tick down when RDP is active and auto-rotate is enabled
+        viewModelScope.launch {
+            while (isActive) {
+                delay(1000L)
+                if (isRdpActive.value && isAutoRotateEnabled.value) {
+                    if (_autoRotateSecondsLeft.value > 1) {
+                        _autoRotateSecondsLeft.value -= 1
+                    } else {
+                        _autoRotateSecondsLeft.value = 300
+                        rotateUsaIpNow(isAutomatic = true)
+                    }
+                }
+            }
+        }
     }
 
     val activeTab: BrowserTab?
@@ -190,12 +212,14 @@ class NovaBrowserViewModel(
             val current = activeTab
             _omniboxQuery.value = if (current?.isNewTab == true) "" else current?.url ?: ""
             updateSuggestions(_omniboxQuery.value)
+        } else {
+            _suggestions.value = emptyList()
         }
     }
 
-    fun setOmniboxQuery(text: String) {
-        _omniboxQuery.value = text
-        updateSuggestions(text)
+    fun updateOmniboxQuery(query: String) {
+        _omniboxQuery.value = query
+        updateSuggestions(query)
     }
 
     private fun updateSuggestions(query: String) {
@@ -299,91 +323,67 @@ class NovaBrowserViewModel(
         if (url != "nova://newtab") {
             loadUrl(url, newTab.id)
         }
-        showToast(if (isIncognito) "Opened new incognito tab" else "New tab opened")
+        persistSession()
+    }
+
+    fun selectTab(tabId: String) {
+        _activeTabId.value = tabId
+        clearErrorForTab(tabId)
+        closeSheet()
         persistSession()
     }
 
     fun closeTab(tabId: String) {
-        val currentTabs = _tabs.value
-        val closingTab = currentTabs.find { it.id == tabId } ?: return
-
-        // Save to recently closed if not incognito
-        if (!closingTab.isIncognito && !closingTab.isNewTab) {
-            recentlyClosedTabs.addFirst(closingTab)
-            if (recentlyClosedTabs.size > 20) recentlyClosedTabs.removeLast()
+        val currentList = _tabs.value
+        val tabToClose = currentList.find { it.id == tabId }
+        if (tabToClose != null && !tabToClose.isIncognito) {
+            recentlyClosedTabs.addLast(tabToClose)
+            if (recentlyClosedTabs.size > 15) recentlyClosedTabs.removeFirst()
         }
 
-        webViewManager.removeWebView(tabId)
+        webViewManager.destroyWebView(tabId)
 
-        if (currentTabs.size <= 1) {
-            // Keep at least one tab open
+        if (currentList.size <= 1) {
             val freshTab = BrowserTab()
             _tabs.value = listOf(freshTab)
             _activeTabId.value = freshTab.id
         } else {
-            val remaining = currentTabs.filter { it.id != tabId }
+            val remaining = currentList.filter { it.id != tabId }
             _tabs.value = remaining
             if (_activeTabId.value == tabId) {
-                val nextTab = remaining.last()
-                _activeTabId.value = nextTab.id
+                _activeTabId.value = remaining.last().id
             }
         }
         persistSession()
     }
 
-    fun closeOtherTabs(keepTabId: String) {
-        val currentTabs = _tabs.value
-        val toRemove = currentTabs.filter { it.id != keepTabId }
-        toRemove.forEach {
-            if (!it.isIncognito && !it.isNewTab) recentlyClosedTabs.addFirst(it)
-            webViewManager.removeWebView(it.id)
-        }
-        _tabs.value = currentTabs.filter { it.id == keepTabId }
-        _activeTabId.value = keepTabId
+    fun closeOtherTabs(keptTabId: String) {
+        val tabsToDestroy = _tabs.value.filter { it.id != keptTabId }
+        tabsToDestroy.forEach { webViewManager.destroyWebView(it.id) }
+        _tabs.value = _tabs.value.filter { it.id == keptTabId }
+        _activeTabId.value = keptTabId
         persistSession()
-        showToast("Closed other tabs")
     }
 
     fun reopenRecentlyClosedTab() {
-        val toReopen = recentlyClosedTabs.removeFirstOrNull()
-        if (toReopen != null) {
-            val restored = toReopen.copy(id = java.util.UUID.randomUUID().toString())
+        if (recentlyClosedTabs.isNotEmpty()) {
+            val restored = recentlyClosedTabs.removeLast()
             _tabs.value = _tabs.value + restored
             _activeTabId.value = restored.id
-            loadUrl(restored.url, restored.id)
-            showToast("Reopened: ${restored.title}")
+            if (restored.url != "nova://newtab") {
+                loadUrl(restored.url, restored.id)
+            }
+            showToast("Restored: ${restored.title}")
             persistSession()
         } else {
             showToast("No recently closed tabs")
         }
     }
 
-    fun selectTab(tabId: String) {
-        if (_activeTabId.value != tabId) {
-            _activeTabId.value = tabId
-            _findInPageActive.value = false
-            closeSheet()
-            persistSession()
-        }
-    }
-
-    fun duplicateTab(tabId: String) {
-        val tab = _tabs.value.find { it.id == tabId } ?: return
-        val dup = tab.copy(id = java.util.UUID.randomUUID().toString())
-        _tabs.value = _tabs.value + dup
-        _activeTabId.value = dup.id
-        if (!dup.isNewTab) {
-            loadUrl(dup.url, dup.id)
-        }
-        showToast("Tab duplicated")
-        persistSession()
-    }
-
     fun togglePinTab(tabId: String) {
         _tabs.value = _tabs.value.map {
             if (it.id == tabId) it.copy(isPinned = !it.isPinned) else it
-        }.sortedByDescending { it.isPinned }
-        showToast("Tab pin toggled")
+        }
         persistSession()
     }
 
@@ -393,37 +393,39 @@ class NovaBrowserViewModel(
         _tabs.value = _tabs.value.map {
             if (it.id == current.id) it.copy(isDesktopMode = newMode) else it
         }
-        showToast(if (newMode) "Requesting desktop site" else "Requesting mobile site")
+        val wv = webViewManager.getWebView(current.id)
+        if (wv != null) {
+            webViewManager.applySettings(wv, settings.value, newMode, current.isIncognito)
+            wv.reload()
+        }
+        showToast(if (newMode) "Desktop site requested" else "Mobile site requested")
     }
 
-    fun goBack() {
-        val current = activeTab ?: return
+    fun goBack(): Boolean {
+        val current = activeTab ?: return false
         val wv = webViewManager.getWebView(current.id)
-        if (wv != null && wv.canGoBack()) {
+        return if (wv != null && wv.canGoBack()) {
             wv.goBack()
-        }
+            true
+        } else false
     }
 
-    fun goForward() {
-        val current = activeTab ?: return
+    fun goForward(): Boolean {
+        val current = activeTab ?: return false
         val wv = webViewManager.getWebView(current.id)
-        if (wv != null && wv.canGoForward()) {
+        return if (wv != null && wv.canGoForward()) {
             wv.goForward()
-        }
+            true
+        } else false
     }
 
     fun reload() {
         val current = activeTab ?: return
         clearErrorForTab(current.id)
-        val wv = webViewManager.getWebView(current.id)
-        if (wv != null) {
-            wv.reload()
-        } else if (!current.isNewTab) {
-            loadUrl(current.url)
-        }
+        webViewManager.getWebView(current.id)?.reload()
     }
 
-    fun stopLoading() {
+    fun stop() {
         val current = activeTab ?: return
         webViewManager.getWebView(current.id)?.stopLoading()
         _tabs.value = _tabs.value.map {
@@ -432,91 +434,113 @@ class NovaBrowserViewModel(
     }
 
     fun goHome() {
-        loadUrl(settings.value.homeUrl)
+        loadUrl("nova://newtab")
     }
 
-    // Page state updates from WebView callbacks
-    fun onPageStarted(tabId: String, url: String) {
-        clearErrorForTab(tabId)
-        _tabs.value = _tabs.value.map { tab ->
-            if (tab.id == tabId) {
-                tab.copy(url = url, isLoading = true, progress = 10)
-            } else tab
+    // TabWebViewManager callbacks
+    override fun onTitleChanged(tabId: String, title: String) {
+        _tabs.value = _tabs.value.map {
+            if (it.id == tabId) it.copy(title = title) else it
         }
     }
 
-    fun onPageFinished(tabId: String, url: String, title: String) {
-        val wv = webViewManager.getWebView(tabId)
-        val canBack = wv?.canGoBack() ?: false
-        val canFwd = wv?.canGoForward() ?: false
-
-        _tabs.value = _tabs.value.map { tab ->
-            if (tab.id == tabId) {
-                tab.copy(
-                    url = url,
-                    title = if (title.isNotBlank()) title else WebUtils.extractDomain(url),
-                    isLoading = false,
-                    progress = 100,
-                    canGoBack = canBack,
-                    canGoForward = canFwd
-                )
-            } else tab
+    override fun onUrlChanged(tabId: String, url: String) {
+        _tabs.value = _tabs.value.map {
+            if (it.id == tabId) it.copy(url = url) else it
+        }
+        val currentActive = activeTab
+        if (currentActive?.id == tabId && !_isOmniboxFocused.value) {
+            _omniboxQuery.value = if (url == "nova://newtab") "" else url
         }
 
-        // Record history if not incognito and not internal
-        val tab = _tabs.value.find { it.id == tabId }
-        if (tab != null && !tab.isIncognito && !tab.isNewTab && settings.value.searchHistoryEnabled) {
-            viewModelScope.launch {
-                repository.recordHistoryVisit(title, url)
+        if (url != "nova://newtab" && !url.startsWith("about:")) {
+            val tab = _tabs.value.find { it.id == tabId }
+            if (tab?.isIncognito == false) {
+                viewModelScope.launch {
+                    repository.insertHistory(
+                        HistoryEntry(
+                            title = tab.title.ifBlank { WebUtils.extractDomain(url) },
+                            url = url
+                        )
+                    )
+                }
             }
         }
-        persistSession()
     }
 
-    fun onProgressChanged(tabId: String, progress: Int) {
-        _tabs.value = _tabs.value.map { tab ->
-            if (tab.id == tabId) {
-                tab.copy(progress = progress, isLoading = progress < 100)
-            } else tab
+    override fun onProgressChanged(tabId: String, progress: Int) {
+        _tabs.value = _tabs.value.map {
+            if (it.id == tabId) it.copy(progress = progress) else it
         }
     }
 
-    fun onReceivedTitle(tabId: String, title: String) {
-        if (title.isBlank()) return
-        _tabs.value = _tabs.value.map { tab ->
-            if (tab.id == tabId) tab.copy(title = title) else tab
+    override fun onLoadingStateChanged(tabId: String, isLoading: Boolean) {
+        _tabs.value = _tabs.value.map {
+            if (it.id == tabId) it.copy(isLoading = isLoading) else it
         }
     }
 
-    fun onReceivedError(tabId: String, errorCode: Int, description: String, failingUrl: String) {
-        _pageErrors.value = _pageErrors.value + (tabId to Triple(errorCode, description, failingUrl))
-        _tabs.value = _tabs.value.map { tab ->
-            if (tab.id == tabId) tab.copy(isLoading = false) else tab
+    override fun onCanGoBackForwardChanged(tabId: String, canGoBack: Boolean, canGoForward: Boolean) {
+        _tabs.value = _tabs.value.map {
+            if (it.id == tabId) it.copy(canGoBack = canGoBack, canGoForward = canGoForward) else it
         }
     }
 
-    private fun clearErrorForTab(tabId: String) {
-        _pageErrors.value = _pageErrors.value - tabId
+    override fun onSecurityChanged(tabId: String, isSecure: Boolean) {
+        _tabs.value = _tabs.value.map {
+            if (it.id == tabId) it.copy(isSecure = isSecure) else it
+        }
     }
 
-    // Bookmarks
+    override fun onErrorReceived(tabId: String, errorCode: Int, description: String, failingUrl: String) {
+        val map = _pageErrors.value.toMutableMap()
+        map[tabId] = Triple(errorCode, description, failingUrl)
+        _pageErrors.value = map
+    }
+
+    override fun onDownloadRequested(url: String, userAgent: String, contentDisposition: String, mimeType: String, contentLength: Long) {
+        val fileName = Uri.parse(url).lastPathSegment ?: "downloadfile"
+        viewModelScope.launch {
+            repository.insertDownload(
+                DownloadEntry(
+                    fileName = fileName,
+                    url = url,
+                    mimeType = mimeType,
+                    fileSizeBytes = contentLength
+                )
+            )
+            showToast("Download started: $fileName")
+        }
+    }
+
+    override fun onNewWindowRequested(url: String, isUserGesture: Boolean) {
+        openNewTab(url = url)
+    }
+
+    fun clearErrorForTab(tabId: String) {
+        val map = _pageErrors.value.toMutableMap()
+        map.remove(tabId)
+        _pageErrors.value = map
+    }
+
+    // Bookmarks management
     fun toggleCurrentBookmark() {
         val current = activeTab ?: return
         if (current.isNewTab) return
+
         viewModelScope.launch {
-            val existing = repository.getBookmarkByUrl(current.url)
-            if (existing != null) {
-                repository.deleteBookmark(existing)
+            val url = current.url
+            if (isCurrentTabBookmarked.value) {
+                repository.deleteBookmarkByUrl(url)
                 showToast("Bookmark removed")
             } else {
                 repository.insertBookmark(
                     Bookmark(
-                        title = current.title,
-                        url = current.url,
-                        folder = "Mobile Bookmarks"
+                        title = current.title.ifBlank { WebUtils.extractDomain(url) },
+                        url = url
                     )
                 )
-                showToast("Bookmark saved")
+                showToast("Bookmark added")
             }
         }
     }
@@ -539,80 +563,55 @@ class NovaBrowserViewModel(
         viewModelScope.launch {
             repository.insertBookmark(
                 Bookmark(
-                    title = title,
-                    url = url,
-                    folder = "Mobile Bookmarks"
+                    title = title.ifBlank { WebUtils.extractDomain(url) },
+                    url = url
                 )
             )
             showToast("Bookmark added")
         }
     }
 
-    // History
+    // History management
     fun deleteHistoryEntry(entry: HistoryEntry) {
         viewModelScope.launch {
-            repository.deleteHistoryEntry(entry)
-            showToast("Removed from history")
+            repository.deleteHistory(entry)
         }
     }
 
     fun clearHistory(range: ClearDataRange) {
         viewModelScope.launch {
-            val now = System.currentTimeMillis()
-            when (range) {
-                ClearDataRange.LAST_HOUR -> repository.clearHistorySince(now - 3600_000L)
-                ClearDataRange.LAST_24_HOURS -> repository.clearHistorySince(now - 86400_000L)
-                ClearDataRange.LAST_7_DAYS -> repository.clearHistorySince(now - 7 * 86400_000L)
-                ClearDataRange.ALL_TIME -> repository.clearAllHistory()
+            if (range == ClearDataRange.ALL_TIME) {
+                repository.clearAllHistory()
+            } else {
+                val cutoff = System.currentTimeMillis() - range.durationMillis
+                repository.clearHistorySince(cutoff)
             }
-            showToast("History cleared (${range.label})")
+            showToast("History cleared (${range.displayName})")
         }
     }
 
-    fun clearAllBrowsingData(context: Context) {
-        viewModelScope.launch {
-            repository.clearAllHistory()
-            CookieManager.getInstance().removeAllCookies(null)
-            CookieManager.getInstance().flush()
-            WebStorage.getInstance().deleteAllData()
-            showToast("Browsing history, cookies & cache cleared")
-        }
-    }
-
-    // Downloads
-    fun handleDownloadRequest(
-        url: String,
-        userAgent: String,
-        contentDisposition: String,
-        mimeType: String,
-        contentLength: Long
-    ) {
-        val fileName = android.webkit.URLUtil.guessFileName(url, contentDisposition, mimeType)
-        viewModelScope.launch {
-            repository.addDownload(
-                DownloadEntry(
-                    fileName = fileName,
-                    url = url,
-                    sizeBytes = contentLength,
-                    mimeType = mimeType,
-                    status = "Completed"
-                )
-            )
-            showToast("Downloaded: $fileName")
-        }
-    }
-
+    // Downloads management
     fun deleteDownload(entry: DownloadEntry) {
         viewModelScope.launch {
             repository.deleteDownload(entry)
-            showToast("Download removed")
         }
     }
 
     fun clearDownloads() {
         viewModelScope.launch {
             repository.clearAllDownloads()
-            showToast("Downloads cleared")
+            showToast("Downloads list cleared")
+        }
+    }
+
+    // Clear all browsing data
+    fun clearAllBrowsingData(context: Context) {
+        viewModelScope.launch {
+            repository.clearAllHistory()
+            WebStorage.getInstance().deleteAllData()
+            CookieManager.getInstance().removeAllCookies(null)
+            CookieManager.getInstance().flush()
+            showToast("Browsing data, cookies & cache cleared")
         }
     }
 
@@ -716,7 +715,7 @@ class NovaBrowserViewModel(
             putExtra(Intent.EXTRA_SUBJECT, current.title)
             type = "text/plain"
         }
-        val shareIntent = Intent.createChooser(sendIntent, "Share via Nova Browser")
+        val shareIntent = Intent.createChooser(sendIntent, "Share via Maria Browser")
         context.startActivity(shareIntent)
     }
 
@@ -795,6 +794,25 @@ class NovaBrowserViewModel(
             } else {
                 _currentPublicIp.value = err ?: "Unavailable"
             }
+        }
+    }
+
+    fun toggleAutoRotate() {
+        val next = !isAutoRotateEnabled.value
+        repository.setAutoRotateEnabled(next)
+        if (next) _autoRotateSecondsLeft.value = 300
+        showToast(if (next) "Auto-rotate USA IP every 5 min enabled" else "Auto-rotate paused")
+    }
+
+    fun rotateUsaIpNow(isAutomatic: Boolean = false) {
+        val tunnelProfiles = rdpProfiles.value.filter { it.mode == RdpMode.PROXY_TUNNEL }
+        if (tunnelProfiles.isNotEmpty()) {
+            val currentIndex = tunnelProfiles.indexOfFirst { it.isEnabled }
+            val nextIndex = if (currentIndex >= 0) (currentIndex + 1) % tunnelProfiles.size else 0
+            val nextProfile = tunnelProfiles[nextIndex]
+            selectRdpProfile(nextProfile)
+            _autoRotateSecondsLeft.value = 300
+            showToast(if (isAutomatic) "🇺🇸 Auto-rotated USA IP to ${nextProfile.name}" else "🇺🇸 Switched to ${nextProfile.name}")
         }
     }
 

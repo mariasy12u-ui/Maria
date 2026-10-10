@@ -4,7 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.http.SslError
-import android.os.Build
+import android.os.Message
 import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.DownloadListener
@@ -12,233 +12,166 @@ import android.webkit.SslErrorHandler
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
-import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.example.data.model.BrowserSettings
 import com.example.data.model.BrowserTab
 import java.util.concurrent.ConcurrentHashMap
 
 class TabWebViewManager(private val context: Context) {
     private val webViewMap = ConcurrentHashMap<String, WebView>()
 
-    companion object {
-        const val DESKTOP_USER_AGENT = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
-    }
+    private val desktopUserAgent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    private var defaultUserAgent: String = ""
 
-    fun getOrCreateWebView(
-        tab: BrowserTab,
-        onPageStarted: (url: String) -> Unit,
-        onPageFinished: (url: String, title: String) -> Unit,
-        onProgressChanged: (progress: Int) -> Unit,
-        onReceivedTitle: (title: String) -> Unit,
-        onReceivedError: (errorCode: Int, description: String, failingUrl: String) -> Unit,
-        onDownloadRequested: (url: String, userAgent: String, contentDisposition: String, mimeType: String, contentLength: Long) -> Unit,
-        onLongClickHitResult: (type: Int, extra: String?) -> Unit
-    ): WebView {
-        val existing = webViewMap[tab.id]
-        if (existing != null) {
-            updateSettingsForTab(existing, tab)
-            return existing
-        }
-
-        val newWebView = createConfiguredWebView(
-            tab = tab,
-            onPageStarted = onPageStarted,
-            onPageFinished = onPageFinished,
-            onProgressChanged = onProgressChanged,
-            onReceivedTitle = onReceivedTitle,
-            onReceivedError = onReceivedError,
-            onDownloadRequested = onDownloadRequested,
-            onLongClickHitResult = onLongClickHitResult
-        )
-        webViewMap[tab.id] = newWebView
-
-        if (!tab.isNewTab) {
-            newWebView.loadUrl(tab.url)
-        }
-
-        return newWebView
+    interface TabCallback {
+        fun onTitleChanged(tabId: String, title: String)
+        fun onUrlChanged(tabId: String, url: String)
+        fun onProgressChanged(tabId: String, progress: Int)
+        fun onLoadingStateChanged(tabId: String, isLoading: Boolean)
+        fun onCanGoBackForwardChanged(tabId: String, canGoBack: Boolean, canGoForward: Boolean)
+        fun onSecurityChanged(tabId: String, isSecure: Boolean)
+        fun onErrorReceived(tabId: String, errorCode: Int, description: String, failingUrl: String)
+        fun onDownloadRequested(url: String, userAgent: String, contentDisposition: String, mimeType: String, contentLength: Long)
+        fun onNewWindowRequested(url: String, isUserGesture: Boolean)
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    private fun createConfiguredWebView(
+    fun getOrCreateWebView(
         tab: BrowserTab,
-        onPageStarted: (url: String) -> Unit,
-        onPageFinished: (url: String, title: String) -> Unit,
-        onProgressChanged: (progress: Int) -> Unit,
-        onReceivedTitle: (title: String) -> Unit,
-        onReceivedError: (errorCode: Int, description: String, failingUrl: String) -> Unit,
-        onDownloadRequested: (url: String, userAgent: String, contentDisposition: String, mimeType: String, contentLength: Long) -> Unit,
-        onLongClickHitResult: (type: Int, extra: String?) -> Unit
+        settings: BrowserSettings,
+        callback: TabCallback
     ): WebView {
-        val webView = WebView(context).apply {
-            layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
-            isFocusable = true
-            isFocusableInTouchMode = true
-        }
+        return webViewMap.getOrPut(tab.id) {
+            WebView(context).apply {
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT
+                )
 
-        val settings = webView.settings
-        settings.javaScriptEnabled = true
-        settings.domStorageEnabled = true
-        settings.databaseEnabled = true
-        settings.useWideViewPort = true
-        settings.loadWithOverviewMode = true
-        settings.setSupportZoom(true)
-        settings.builtInZoomControls = true
-        settings.displayZoomControls = false
-        settings.allowFileAccess = false
-        settings.allowContentAccess = false
-        settings.mediaPlaybackRequiresUserGesture = false
-        settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                if (defaultUserAgent.isEmpty()) {
+                    defaultUserAgent = this.settings.userAgentString
+                }
 
-        if (tab.isDesktopMode) {
-            settings.userAgentString = DESKTOP_USER_AGENT
-        }
+                applySettings(this, settings, tab.isDesktopMode, tab.isIncognito)
 
-        if (tab.isIncognito) {
-            settings.cacheMode = WebSettings.LOAD_NO_CACHE
-            webView.clearCache(true)
-            webView.clearFormData()
-            val cookieManager = CookieManager.getInstance()
-            cookieManager.setAcceptThirdPartyCookies(webView, false)
-        } else {
-            settings.cacheMode = WebSettings.LOAD_DEFAULT
-            val cookieManager = CookieManager.getInstance()
-            cookieManager.setAcceptCookie(true)
-            cookieManager.setAcceptThirdPartyCookies(webView, false)
-        }
+                setDownloadListener { url, userAgent, contentDisposition, mimetype, contentLength ->
+                    callback.onDownloadRequested(url, userAgent, contentDisposition, mimetype, contentLength)
+                }
 
-        val trackerDomains = arrayOf(
-            "google-analytics.com",
-            "googletagmanager.com",
-            "doubleclick.net",
-            "adservice.google.com",
-            "scorecardresearch.com",
-            "criteo.com",
-            "adnxs.com",
-            "facebook.net/tr",
-            "taboola.com",
-            "outbrain.com",
-            "popads.net",
-            "propellerads.com"
-        )
+                webViewClient = object : WebViewClient() {
+                    override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                        super.onPageStarted(view, url, favicon)
+                        val u = url ?: ""
+                        callback.onUrlChanged(tab.id, u)
+                        callback.onLoadingStateChanged(tab.id, true)
+                        callback.onCanGoBackForwardChanged(tab.id, view?.canGoBack() == true, view?.canGoForward() == true)
+                        callback.onSecurityChanged(tab.id, WebUtils.isSecure(u))
+                    }
 
-        webView.webViewClient = object : WebViewClient() {
-            override fun shouldInterceptRequest(
-                view: WebView?,
-                request: WebResourceRequest?
-            ): WebResourceResponse? {
-                val reqUrl = request?.url?.toString() ?: return null
-                for (tracker in trackerDomains) {
-                    if (reqUrl.contains(tracker, ignoreCase = true)) {
-                        return WebResourceResponse(
-                            "text/plain",
-                            "UTF-8",
-                            java.io.ByteArrayInputStream(ByteArray(0))
-                        )
+                    override fun onPageFinished(view: WebView?, url: String?) {
+                        super.onPageFinished(view, url)
+                        val u = url ?: ""
+                        callback.onLoadingStateChanged(tab.id, false)
+                        callback.onCanGoBackForwardChanged(tab.id, view?.canGoBack() == true, view?.canGoForward() == true)
+                        callback.onSecurityChanged(tab.id, WebUtils.isSecure(u))
+                        view?.title?.let { t ->
+                            if (t.isNotBlank()) callback.onTitleChanged(tab.id, t)
+                        }
+                    }
+
+                    override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                        super.onReceivedError(view, request, error)
+                        if (request?.isForMainFrame == true) {
+                            val errCode = error?.errorCode ?: -1
+                            val desc = error?.description?.toString() ?: "Unknown error"
+                            val failingUrl = request.url.toString()
+                            callback.onErrorReceived(tab.id, errCode, desc, failingUrl)
+                        }
+                    }
+
+                    override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
+                        callback.onSecurityChanged(tab.id, false)
+                        handler?.proceed()
                     }
                 }
-                return super.shouldInterceptRequest(view, request)
-            }
 
-            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                super.onPageStarted(view, url, favicon)
-                url?.let { onPageStarted(it) }
-            }
+                webChromeClient = object : WebChromeClient() {
+                    override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                        super.onProgressChanged(view, newProgress)
+                        callback.onProgressChanged(tab.id, newProgress)
+                    }
 
-            override fun onPageFinished(view: WebView?, url: String?) {
-                super.onPageFinished(view, url)
-                val currentUrl = url ?: view?.url ?: ""
-                val currentTitle = view?.title ?: ""
-                onPageFinished(currentUrl, currentTitle)
-            }
+                    override fun onReceivedTitle(view: WebView?, title: String?) {
+                        super.onReceivedTitle(view, title)
+                        title?.let {
+                            if (it.isNotBlank()) callback.onTitleChanged(tab.id, it)
+                        }
+                    }
 
-            override fun onReceivedError(
-                view: WebView?,
-                request: WebResourceRequest?,
-                error: WebResourceError?
-            ) {
-                super.onReceivedError(view, request, error)
-                if (request?.isForMainFrame == true) {
-                    val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        error?.errorCode ?: -1
-                    } else -1
-                    val desc = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        error?.description?.toString() ?: "Unknown error"
-                    } else "Network error"
-                    val failingUrl = request.url?.toString() ?: ""
-                    onReceivedError(code, desc, failingUrl)
+                    override fun onCreateWindow(view: WebView?, isDialog: Boolean, isUserGesture: Boolean, resultMsg: Message?): Boolean {
+                        val transport = resultMsg?.obj as? WebView.WebViewTransport
+                        val tempWv = WebView(context)
+                        tempWv.webViewClient = object : WebViewClient() {
+                            override fun shouldOverrideUrlLoading(v: WebView?, req: WebResourceRequest?): Boolean {
+                                req?.url?.toString()?.let { newUrl ->
+                                    callback.onNewWindowRequested(newUrl, isUserGesture)
+                                }
+                                return true
+                            }
+                        }
+                        transport?.webView = tempWv
+                        resultMsg?.sendToTarget()
+                        return true
+                    }
+                }
+
+                if (tab.url != "nova://newtab") {
+                    loadUrl(tab.url)
                 }
             }
-
-            override fun onReceivedSslError(view: WebView?, handler: SslErrorHandler?, error: SslError?) {
-                // By default for security, cancel untrusted SSL
-                handler?.cancel()
-            }
-        }
-
-        webView.webChromeClient = object : WebChromeClient() {
-            override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                super.onProgressChanged(view, newProgress)
-                onProgressChanged(newProgress)
-            }
-
-            override fun onReceivedTitle(view: WebView?, title: String?) {
-                super.onReceivedTitle(view, title)
-                title?.let { onReceivedTitle(it) }
-            }
-        }
-
-        webView.setDownloadListener(DownloadListener { url, userAgent, contentDisposition, mimetype, contentLength ->
-            onDownloadRequested(url, userAgent, contentDisposition, mimetype, contentLength)
-        })
-
-        webView.setOnLongClickListener {
-            val result = webView.hitTestResult
-            val type = result.type
-            val extra = result.extra
-            if (type != WebView.HitTestResult.UNKNOWN_TYPE && extra != null) {
-                onLongClickHitResult(type, extra)
-                true
-            } else {
-                false
-            }
-        }
-
-        return webView
-    }
-
-    private fun updateSettingsForTab(webView: WebView, tab: BrowserTab) {
-        val settings = webView.settings
-        val currentUa = settings.userAgentString
-        if (tab.isDesktopMode && currentUa != DESKTOP_USER_AGENT) {
-            settings.userAgentString = DESKTOP_USER_AGENT
-            webView.reload()
-        } else if (!tab.isDesktopMode && currentUa == DESKTOP_USER_AGENT) {
-            settings.userAgentString = null // Reset to default
-            webView.reload()
         }
     }
 
-    fun removeWebView(tabId: String) {
-        val webView = webViewMap.remove(tabId)
-        webView?.let {
-            it.stopLoading()
-            it.clearHistory()
-            it.removeAllViews()
-            it.destroy()
+    fun applySettings(wv: WebView, settings: BrowserSettings, isDesktop: Boolean, isIncognito: Boolean) {
+        wv.settings.apply {
+            javaScriptEnabled = settings.javaScriptEnabled
+            domStorageEnabled = true
+            useWideViewPort = true
+            loadWithOverviewMode = true
+            setSupportZoom(true)
+            builtInZoomControls = true
+            displayZoomControls = false
+            cacheMode = if (isIncognito) WebSettings.LOAD_NO_CACHE else WebSettings.LOAD_DEFAULT
+            mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+            userAgentString = if (isDesktop) desktopUserAgent else defaultUserAgent
+        }
+
+        if (isIncognito) {
+            CookieManager.getInstance().setAcceptCookie(false)
+        } else {
+            CookieManager.getInstance().setAcceptCookie(true)
+            CookieManager.getInstance().setAcceptThirdPartyCookies(wv, !settings.blockThirdPartyCookies)
         }
     }
 
     fun getWebView(tabId: String): WebView? = webViewMap[tabId]
 
+    fun destroyWebView(tabId: String) {
+        webViewMap.remove(tabId)?.apply {
+            stopLoading()
+            loadUrl("about:blank")
+            clearHistory()
+            removeAllViews()
+            destroy()
+        }
+    }
+
     fun destroyAll() {
-        for ((_, wv) in webViewMap) {
+        webViewMap.forEach { (_, wv) ->
             wv.stopLoading()
+            wv.loadUrl("about:blank")
             wv.clearHistory()
             wv.removeAllViews()
             wv.destroy()

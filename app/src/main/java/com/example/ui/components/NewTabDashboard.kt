@@ -1,9 +1,9 @@
 package com.example.ui.components
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,8 +23,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Book
-import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Delete
@@ -35,9 +35,7 @@ import androidx.compose.material.icons.filled.Public
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.VideoLibrary
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -58,14 +56,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.R
 import com.example.data.model.BrowserSettings
 import com.example.data.model.HistoryEntry
 import com.example.data.model.ShortcutItem
@@ -87,6 +82,7 @@ fun NewTabDashboard(
     onAddShortcut: () -> Unit,
     onRemoveShortcut: (String) -> Unit,
     onLaunchCloudRdp: () -> Unit = {},
+    onOpenMariaAi: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -109,28 +105,15 @@ fun NewTabDashboard(
             val now = Date()
             currentTime = timeFormat.format(now)
             currentDate = dateFormat.format(now)
-            delay(1000)
+            delay(1000L)
         }
     }
 
     val scrollState = rememberScrollState()
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = if (isIncognito) listOf(
-                        Color(0xFF0D0B18),
-                        Color(0xFF19132C),
-                        Color(0xFF0D0B18)
-                    ) else listOf(
-                        MaterialTheme.colorScheme.background,
-                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-                        MaterialTheme.colorScheme.background
-                    )
-                )
-            )
+    Surface(
+        color = MaterialTheme.colorScheme.background,
+        modifier = modifier.fillMaxSize()
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -139,73 +122,82 @@ fun NewTabDashboard(
                 .verticalScroll(scrollState)
                 .padding(horizontal = 20.dp, vertical = 24.dp)
         ) {
-            // Incognito notice banner if private
+            // Incognito Banner
             if (isIncognito) {
                 Card(
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF231838)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 20.dp)
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFA855F7).copy(alpha = 0.2f))
+                        ) {
                             Icon(
-                                imageVector = Icons.Default.VisibilityOff,
-                                contentDescription = null,
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = "Incognito Mode",
                                 tint = Color(0xFFA855F7),
                                 modifier = Modifier.size(22.dp)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
                             Text(
-                                text = "You're browsing in Private Mode",
-                                fontWeight = FontWeight.Bold,
+                                text = "You've gone incognito",
                                 fontSize = 15.sp,
-                                color = Color(0xFFF3E8FF)
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "Browsing history, cookies, and cache won't be saved on this device.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Nova will not save your browsing history, cookies, or site data for this tab. Downloads and bookmarks created will still be accessible.",
-                            fontSize = 12.sp,
-                            color = Color(0xFFD8B4FE),
-                            lineHeight = 17.sp
-                        )
                     }
                 }
             }
 
-            // Nova Branding & Logo
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Logo & Title
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(76.dp)
+                    .size(64.dp)
                     .clip(CircleShape)
                     .background(
-                        Brush.radialGradient(
+                        Brush.linearGradient(
                             listOf(
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.3f),
-                                Color.Transparent
+                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.colorScheme.secondary
                             )
                         )
                     )
             ) {
-                Image(
-                    painter = painterResource(id = R.drawable.nova_browser_logo),
-                    contentDescription = "Nova Browser Logo",
-                    modifier = Modifier
-                        .size(62.dp)
-                        .clip(CircleShape)
+                Icon(
+                    imageVector = Icons.Default.Public,
+                    contentDescription = "Maria Browser Logo",
+                    tint = Color.White,
+                    modifier = Modifier.size(34.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Nova Browser",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.ExtraBold,
+                text = "Maria Browser",
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
 
@@ -216,7 +208,102 @@ fun NewTabDashboard(
                 modifier = Modifier.padding(top = 2.dp)
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Maria AI Suite Chips
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
+                        .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                        .clickable { onOpenMariaAi() }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.AutoAwesome,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text(
+                            text = "Ask Maria AI",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f))
+                        .border(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                        .clickable { onOpenMariaAi() }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "🎭 Face Swap AI",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.5f))
+                        .border(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                        .clickable { onOpenMariaAi() }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "🎬 AI Video",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.tertiary
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0xFF10B981).copy(alpha = 0.15f))
+                        .border(1.dp, Color(0xFF10B981).copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                        .clickable { onLaunchCloudRdp() }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "🇺🇸 RDP Tunnel",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF10B981)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
 
             // Central Search Omnibox
             Card(
@@ -233,9 +320,7 @@ fun NewTabDashboard(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Search,
@@ -243,24 +328,20 @@ fun NewTabDashboard(
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(20.dp)
                     )
-
                     Spacer(modifier = Modifier.width(10.dp))
-
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
                         placeholder = {
                             Text(
-                                "Search ${settings.searchEngine.displayName} or enter URL",
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                "Search with ${settings.searchEngine.displayName} or enter URL",
+                                fontSize = 13.sp
                             )
                         },
                         singleLine = true,
                         colors = androidx.compose.material3.TextFieldDefaults.colors(
                             focusedContainerColor = Color.Transparent,
                             unfocusedContainerColor = Color.Transparent,
-                            disabledContainerColor = Color.Transparent,
                             focusedIndicatorColor = Color.Transparent,
                             unfocusedIndicatorColor = Color.Transparent
                         ),
@@ -268,99 +349,21 @@ fun NewTabDashboard(
                             .weight(1f)
                             .testTag("dashboard_search_input")
                     )
-
-                    if (searchQuery.isNotBlank()) {
-                        IconButton(
-                            onClick = {
-                                onSearch(searchQuery)
-                                searchQuery = ""
-                            },
-                            modifier = Modifier.size(32.dp)
-                        ) {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { onSearch(searchQuery) }) {
                             Icon(
                                 imageVector = Icons.Default.Public,
                                 contentDescription = "Go",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp)
+                                tint = MaterialTheme.colorScheme.primary
                             )
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // 60-100 Mbps Cloud RDP Launcher Card (Built-in)
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(
-                        1.dp,
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                        RoundedCornerShape(16.dp)
-                    )
-                    .clickable { onLaunchCloudRdp() }
-                    .testTag("launch_cloud_rdp_button")
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(12.dp)
-                ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primary)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Speed,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "⚡ 60 Mbps Cloud RDP",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(Color(0xFF10B981))
-                                    .padding(horizontal = 5.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "READY",
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color.White
-                                )
-                            }
-                        }
-                        Text(
-                            text = "Stream movies & browse on remote 60-100 Mbps fiber — no RDP needed!",
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            lineHeight = 15.sp
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Shortcuts Grid (Speed Dial)
+            // Speed Dial Shortcuts
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
@@ -372,23 +375,22 @@ fun NewTabDashboard(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.weight(1f))
-                Text(
-                    text = "Add shortcut",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier
-                        .clickable { onAddShortcut() }
-                        .padding(4.dp)
-                )
+                IconButton(onClick = onAddShortcut, modifier = Modifier.size(28.dp)) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Add shortcut",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
             FlowRow(
+                maxItemsInEachRow = 4,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
-                maxItemsInEachRow = 4,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 shortcuts.forEach { shortcut ->
@@ -397,37 +399,39 @@ fun NewTabDashboard(
                         modifier = Modifier
                             .width(68.dp)
                             .clickable { onOpenUrl(shortcut.url) }
+                            .testTag("shortcut_${shortcut.id}")
                     ) {
                         Box(
                             contentAlignment = Alignment.Center,
                             modifier = Modifier
-                                .size(48.dp)
+                                .size(50.dp)
                                 .clip(RoundedCornerShape(14.dp))
                                 .background(MaterialTheme.colorScheme.surfaceVariant)
                                 .border(
-                                    0.5.dp,
-                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                                    1.dp,
+                                    MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
                                     RoundedCornerShape(14.dp)
                                 )
                         ) {
-                            val icon = when (shortcut.iconKey) {
+                            val iconVector = when (shortcut.iconKey) {
                                 "search" -> Icons.Default.Search
+                                "book" -> Icons.Default.Book
                                 "code" -> Icons.Default.Code
                                 "video" -> Icons.Default.VideoLibrary
-                                "chat" -> Icons.Default.Chat
                                 "newspaper" -> Icons.Default.Newspaper
                                 "school" -> Icons.Default.School
-                                "book" -> Icons.Default.Book
                                 else -> Icons.Default.Public
                             }
                             Icon(
-                                imageVector = icon,
+                                imageVector = iconVector,
                                 contentDescription = shortcut.title,
                                 tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier.size(24.dp)
                             )
                         }
+
                         Spacer(modifier = Modifier.height(4.dp))
+
                         Text(
                             text = shortcut.title,
                             fontSize = 11.sp,
@@ -438,45 +442,12 @@ fun NewTabDashboard(
                         )
                     }
                 }
-
-                // Plus Add Shortcut Button
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .width(68.dp)
-                        .clickable { onAddShortcut() }
-                ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                            .border(
-                                1.dp,
-                                MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
-                                RoundedCornerShape(14.dp)
-                            )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Add shortcut",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Add",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
             }
 
-            // Recent Visits / Jump Back In
-            if (recentHistory.isNotEmpty() && !isIncognito) {
-                Spacer(modifier = Modifier.height(28.dp))
+            // Recent Visited Pages
+            if (recentHistory.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(26.dp))
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
@@ -489,58 +460,58 @@ fun NewTabDashboard(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Recent History",
+                        text = "Recently Visited",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                recentHistory.take(5).forEach { item ->
-                    Card(
-                        shape = RoundedCornerShape(10.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 3.dp)
-                            .clickable { onOpenUrl(item.url) }
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Public,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = item.title,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                        recentHistory.take(5).forEach { entry ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onOpenUrl(entry.url) }
+                                    .padding(horizontal = 14.dp, vertical = 10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Public,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
                                 )
-                                Text(
-                                    text = item.url,
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = entry.title,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = entry.url,
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(40.dp))
         }
     }
 }

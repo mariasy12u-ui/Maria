@@ -13,27 +13,15 @@ interface HistoryDao {
     @Query("SELECT * FROM history ORDER BY timestamp DESC")
     fun getAllHistory(): Flow<List<HistoryEntry>>
 
-    @Query("SELECT * FROM history ORDER BY timestamp DESC LIMIT :limit")
-    fun getRecentHistory(limit: Int): Flow<List<HistoryEntry>>
-
-    @Query("SELECT * FROM history WHERE title LIKE '%' || :query || '%' OR url LIKE '%' || :query || '%' ORDER BY timestamp DESC")
-    fun searchHistory(query: String): Flow<List<HistoryEntry>>
-
-    @Query("SELECT * FROM history WHERE url = :url LIMIT 1")
-    suspend fun getEntryByUrl(url: String): HistoryEntry?
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(entry: HistoryEntry): Long
+    suspend fun insertHistory(entry: HistoryEntry)
 
     @Delete
-    suspend fun delete(entry: HistoryEntry)
-
-    @Query("DELETE FROM history WHERE id = :id")
-    suspend fun deleteById(id: Long)
+    suspend fun deleteHistory(entry: HistoryEntry)
 
     @Query("DELETE FROM history WHERE timestamp >= :sinceTimestamp")
-    suspend fun deleteSince(sinceTimestamp: Long)
+    suspend fun clearHistorySince(sinceTimestamp: Long)
 
     @Query("DELETE FROM history")
-    suspend fun clearAll()
+    suspend fun clearAllHistory()
 }

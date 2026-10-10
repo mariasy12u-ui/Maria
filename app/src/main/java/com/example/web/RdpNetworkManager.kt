@@ -27,6 +27,11 @@ class RdpNetworkManager(private val context: Context) {
         profile: RdpProfile,
         onResult: (success: Boolean, message: String) -> Unit
     ) {
+        if (profile.mode == com.example.data.model.RdpMode.WEB_DESKTOP) {
+            onResult(true, "Web Desktop mode: Direct cloud screen accessible in new tab")
+            return
+        }
+
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
             onResult(false, "Proxy override not supported by current Android WebView engine")
             return
@@ -45,7 +50,7 @@ class RdpNetworkManager(private val context: Context) {
                 Runnable {
                     mainHandler.post {
                         Log.d(TAG, "Proxy override applied: $proxyRule")
-                        onResult(true, "RDP Internet routing active via ${profile.host}:${profile.port}")
+                        onResult(true, "🇺🇸 RDP Internet Tunnel Active via ${profile.name} (${profile.host}:${profile.port})")
                     }
                 }
             )

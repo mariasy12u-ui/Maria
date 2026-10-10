@@ -1,6 +1,6 @@
 {
-  "name": "Nova Browser",
-  "description": "Fast, modern, and privacy-focused web browser with tabs, omnibox, bookmarks, history, and downloads.",
+  "name": "Maria Browser",
+  "description": "Minimalist, smart web browser with integrated Maria AI Assistant, AI search, and privacy tools.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -5,7 +5,6 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import androidx.room.Update
 import com.example.data.model.DownloadEntry
 import kotlinx.coroutines.flow.Flow
 
@@ -15,16 +14,10 @@ interface DownloadDao {
     fun getAllDownloads(): Flow<List<DownloadEntry>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(entry: DownloadEntry): Long
-
-    @Update
-    suspend fun update(entry: DownloadEntry)
+    suspend fun insertDownload(entry: DownloadEntry)
 
     @Delete
-    suspend fun delete(entry: DownloadEntry)
-
-    @Query("DELETE FROM downloads WHERE id = :id")
-    suspend fun deleteById(id: Long)
+    suspend fun deleteDownload(entry: DownloadEntry)
 
     @Query("DELETE FROM downloads")
     suspend fun clearAll()
